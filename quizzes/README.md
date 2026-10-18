@@ -43,3 +43,4 @@ Answers go at the bottom of each quiz under an **Answer Key** heading, with a on
 | Quiz | Topics | Difficulty | Questions |
 |---|---|---|---|
 | [rules-easy-01.md](rules-easy-01.md) | rules, cards | easy | 10 |
+| [strategy-hard-01.md](strategy-hard-01.md) | strategy | hard | 10 |
