@@ -1,0 +1,556 @@
+<title>Sorry! Game Replay</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bowlby+One+SC&family=Figtree:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* Layout: a replay console. Board on the left, play-by-play on the right, then the race chart, key moments and player stats. */
+:root{
+  --bg:#E6ECF2; --surface:#FFFFFF; --ink:#152030; --muted:#566377; --line:#CBD4DF;
+  --board:#F4F7FA; --cell:#FFFFFF; --grid:#9FACBC; --cardface:#FFFFFF;
+  --red:#D42A3C; --blue:#1F68C9; --yellow:#DFA70A; --green:#1B9452;
+  --display:"Bowlby One SC","Arial Black",Impact,sans-serif;
+  --body:"Figtree",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --dur:450ms;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0E131A; --surface:#17202B; --ink:#E6EBF1; --muted:#98A4B4; --line:#2A3544;
+    --board:#1A2330; --cell:#222D3A; --grid:#3E4C5E; --cardface:#F3F5F8;
+    --red:#EE5466; --blue:#5B9BEF; --yellow:#F1C232; --green:#3BBF77;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0E131A; --surface:#17202B; --ink:#E6EBF1; --muted:#98A4B4; --line:#2A3544;
+  --board:#1A2330; --cell:#222D3A; --grid:#3E4C5E; --cardface:#F3F5F8;
+  --red:#EE5466; --blue:#5B9BEF; --yellow:#F1C232; --green:#3BBF77;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 48px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1,h2{font-family:var(--display);font-weight:400;letter-spacing:.01em;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(2rem,5vw,3.2rem)}
+h2{font-size:1.25rem}
+.eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+header{display:flex;flex-direction:column;gap:10px}
+.lede{max-width:68ch;color:var(--muted);margin:0}
+.lede strong{color:var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:2px}
+.tile .num{font-family:var(--display);font-size:1.7rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.tile .lab{font-size:.78rem;color:var(--muted);font-weight:600}
+.main{display:grid;grid-template-columns:minmax(0,640px) minmax(0,1fr);gap:20px;align-items:start}
+.boardcol{display:flex;flex-direction:column;gap:12px;min-width:0}
+#board{width:100%;height:auto;display:block;border-radius:14px;max-width:100%}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+button,select{font:inherit;font-weight:600;font-size:.88rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,select:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible,input:focus-visible,li:focus-visible,.moment:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);min-width:84px}
+#scrub{flex:1 1 160px;min-width:120px;accent-color:var(--ink)}
+.counter{font-family:var(--mono);font-size:.82rem;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.now{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px;border-left:6px solid var(--pc,var(--line))}
+.now .who{display:flex;align-items:center;gap:8px;font-weight:700}
+.now .text{margin:0;min-height:3em}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.chip.bump{color:var(--red);border-color:var(--red)}
+.chip.home{color:var(--green);border-color:var(--green)}
+.chip.slide{color:var(--blue);border-color:var(--blue)}
+.chip.swap{color:var(--ink);border-color:var(--ink)}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+.loghead{padding:10px 18px 6px;display:flex;justify-content:space-between;align-items:baseline}
+#log{list-style:none;margin:0;padding:0 6px 8px;max-height:430px;overflow-y:auto}
+#log li{display:grid;grid-template-columns:3.2em 12px minmax(0,1fr);gap:8px;align-items:baseline;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.85rem}
+#log li:hover{background:var(--bg)}
+#log li.cur{background:var(--bg);outline:1px solid var(--line)}
+#log li .n{font-family:var(--mono);color:var(--muted);font-size:.76rem;font-variant-numeric:tabular-nums}
+#log li .dot{transform:translateY(1px)}
+section.block{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.blockhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.blockhead p{margin:0;color:var(--muted);font-size:.85rem}
+#chart{width:100%;height:auto;display:block;cursor:crosshair}
+.lower{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.4fr);gap:20px}
+#moments{list-style:none;margin:0;padding:0;max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.moment{display:grid;grid-template-columns:3.4em 12px minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 8px;border-radius:6px;cursor:pointer;font-size:.86rem}
+.moment:hover{background:var(--bg)}
+.moment .n{font-family:var(--mono);color:var(--muted);font-size:.76rem}
+.tablewrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.86rem;font-variant-numeric:tabular-nums}
+th,td{padding:7px 7px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+tr.win td:first-child::after{content:"WINNER";margin-left:8px;font-size:.65rem;letter-spacing:.1em;font-weight:700;color:var(--green);border:1px solid var(--green);border-radius:99px;padding:1px 6px}
+.note{font-size:.82rem;color:var(--muted);max-width:80ch;margin:0}
+/* board */
+.cellr{fill:var(--cell);stroke:var(--grid);stroke-width:1}
+.pawn{transition:transform var(--dur) cubic-bezier(.3,.7,.3,1)}
+.pawn circle.body{stroke:var(--ink);stroke-width:2}
+.pawn .ring{fill:none;stroke:var(--ink);stroke-width:2.5;stroke-dasharray:4 3;opacity:0}
+.pawn.moved .ring{opacity:1}
+.pawn text{font-family:var(--mono);font-weight:600;font-size:13px;text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.blabel{font-family:var(--body);font-weight:800;font-size:9px;letter-spacing:.14em;text-anchor:middle}
+@media (max-width:900px){
+  .main,.lower{grid-template-columns:minmax(0,1fr)}
+  #log{max-height:300px}
+}
+@media (max-width:560px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion: reduce){ .pawn{transition:none} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Simulated game · classic rules · 4 players</div>
+    <h1>Sorry! Game Replay</h1>
+    <p class="lede" id="lede">Simulating…</p>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="main">
+    <div class="boardcol">
+      <svg id="board" viewBox="0 0 640 640" role="img" aria-label="Sorry! board showing pawn positions for the current card draw"></svg>
+      <div class="controls">
+        <button id="play" class="primary" type="button">Play</button>
+        <button id="prev" type="button" aria-label="Previous draw">◀</button>
+        <button id="next" type="button" aria-label="Next draw">▶</button>
+        <input id="scrub" type="range" min="0" max="1" value="0" aria-label="Jump to card draw">
+        <span class="counter" id="counter">0 / 0</span>
+        <select id="speed" aria-label="Playback speed">
+          <option value="1400">Slow</option>
+          <option value="700" selected>Normal</option>
+          <option value="260">Fast</option>
+        </select>
+        <button id="newgame" type="button">New game</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="now" id="now" aria-live="polite">
+        <div class="who"><span class="dot" id="nowdot"></span><span id="nowwho">Setup</span></div>
+        <p class="text" id="nowtext"></p>
+        <div class="chips" id="nowchips"></div>
+      </div>
+      <div class="loghead"><span class="eyebrow">Play-by-play</span><span class="counter" id="seedlab"></span></div>
+      <ul id="log"></ul>
+    </div>
+  </div>
+
+  <section class="block">
+    <div class="blockhead">
+      <h2>Race to Home</h2>
+      <p>How far each player's four pawns have traveled, as a share of the full trip. Drops are bumps. Click the chart to jump to that draw.</p>
+    </div>
+    <svg id="chart" viewBox="0 0 900 280" role="img" aria-label="Line chart of each player's progress over the game"></svg>
+  </section>
+
+  <div class="lower">
+    <section class="block">
+      <div class="blockhead"><h2>Key Moments</h2><p>Bumps, swaps and pawns reaching Home. Click to jump.</p></div>
+      <ul id="moments"></ul>
+    </section>
+    <section class="block">
+      <div class="blockhead"><h2>Player Stats</h2></div>
+      <div class="tablewrap"><table id="stats"></table></div>
+      <p class="note">How the computer players choose: for every legal move on the card they drew, they score the resulting board (their own progress, minus the leading opponent's, with a penalty for pawns sitting 1–12 spaces in front of an opponent) and pick the best. Moves follow the classic rules in rules.md: leave Start on a 1 or 2, exact count into Home, 7s can be split, 11s can swap, 2s draw again, and slides bump every pawn on them.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const NAME=["Red","Blue","Yellow","Green"];
+const CVAR=["--red","--blue","--yellow","--green"];
+const PAWN_TEXT=["#fff","#fff","#152030","#fff"];
+const CELL=40;
+const ENTR=p=>p*15+2, EXIT=p=>p*15+4;
+const SLIDES=[], SLIDE_AT={};
+for(let s=0;s<4;s++){
+  for(const [a,b] of [[1,4],[9,13]]){
+    const sl={owner:s,start:s*15+a,end:s*15+b}; SLIDES.push(sl); SLIDE_AT[sl.start]=sl;
+  }
+}
+const CARD_HINT={1:"Start a pawn or move 1",2:"Start a pawn or move 2. Draw again",3:"Move 3",4:"Move back 4",5:"Move 5",7:"Move 7 or split",8:"Move 8",10:"Move 10 or back 1",11:"Move 11 or swap",12:"Move 12",S:"Bump an opponent"};
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function shuffle(arr,rng){for(let i=arr.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
+const clone=st=>st.map(a=>a.map(x=>({z:x.z,v:x.v})));
+const cardWord=c=>c==="S"?"a Sorry! card":((c===8||c===11)?"an ":"a ")+c;
+
+// ---------- rules ----------
+function fwd(pos,p,n){
+  let z=pos.z,v=pos.v;
+  if(z==="S"||z==="H") return null;
+  for(let i=0;i<n;i++){
+    if(z==="T"){ if(v===ENTR(p)){z="Z";v=1;} else v=(v+1)%60; }
+    else if(z==="Z"){ if(v===5){z="H";v=0;} else v++; }
+    else return null; // would overshoot Home
+  }
+  return {z,v};
+}
+function back(pos,p,n){
+  let z=pos.z,v=pos.v;
+  if(z==="S"||z==="H") return null;
+  for(let i=0;i<n;i++){
+    if(z==="Z"){ if(v===1){z="T";v=ENTR(p);} else v--; }
+    else v=(v+59)%60;
+  }
+  return {z,v};
+}
+function occAt(st,t,ep,ek){
+  for(let p=0;p<4;p++)for(let k=0;k<4;k++){
+    if(p===ep&&k===ek) continue;
+    const x=st[p][k]; if(x.z==="T"&&x.v===t) return [p,k];
+  }
+  return null;
+}
+function slideCheck(st,p,k,ev){
+  const x=st[p][k]; if(x.z!=="T") return;
+  const sl=SLIDE_AT[x.v]; if(!sl||sl.owner===p) return;
+  for(let t=sl.start+1;t<=sl.end;t++){
+    const o=occAt(st,t,p,k);
+    if(o){ st[o[0]][o[1]]={z:"S",v:0}; ev.push({type:"bump",by:p,k,victim:o[0],vk:o[1],slide:true}); }
+  }
+  st[p][k]={z:"T",v:sl.end};
+  ev.push({type:"slide",p,k,owner:sl.owner});
+}
+function land(st,p,k,np,ev){
+  if(np.z==="T"){
+    const o=occAt(st,np.v,p,k);
+    if(o){ if(o[0]===p) return false; st[o[0]][o[1]]={z:"S",v:0}; ev.push({type:"bump",by:p,k,victim:o[0],vk:o[1]}); }
+    st[p][k]=np; slideCheck(st,p,k,ev); return true;
+  }
+  if(np.z==="Z"){
+    for(let kk=0;kk<4;kk++) if(kk!==k&&st[p][kk].z==="Z"&&st[p][kk].v===np.v) return false;
+    st[p][k]=np; return true;
+  }
+  st[p][k]=np; ev.push({type:"home",p,k}); return true;
+}
+function options(st,p,card){
+  const out=[];
+  const add=(kind,text,moved,fn)=>{const s=clone(st),ev=[]; if(fn(s,ev)!==false) out.push({kind,text,moved,st:s,ev});};
+  const onBoard=k=>st[p][k].z==="T"||st[p][k].z==="Z";
+  let startK=-1; for(let k=0;k<4;k++) if(st[p][k].z==="S"){startK=k;break;}
+  const F=n=>{for(let k=0;k<4;k++) if(onBoard(k)) add("fwd",`Moved pawn ${k+1} forward ${n}.`,[k],(s,ev)=>{const np=fwd(s[p][k],p,n); return np?land(s,p,k,np,ev):false;});};
+  const B=n=>{for(let k=0;k<4;k++) if(onBoard(k)) add("back",`Moved pawn ${k+1} backward ${n}.`,[k],(s,ev)=>{const np=back(s[p][k],p,n); return np?land(s,p,k,np,ev):false;});};
+  const OUT=()=>{ if(startK>=0) add("out",`Moved pawn ${startK+1} out of Start.`,[startK],(s,ev)=>land(s,p,startK,{z:"T",v:EXIT(p)},ev)); };
+  const opp=[]; for(let q=0;q<4;q++) if(q!==p) for(let kk=0;kk<4;kk++) if(st[q][kk].z==="T") opp.push([q,kk]);
+  switch(card){
+    case 1: OUT(); F(1); break;
+    case 2: OUT(); F(2); break;
+    case 3: F(3); break;
+    case 4: B(4); break;
+    case 5: F(5); break;
+    case 7:
+      F(7);
+      for(let k1=0;k1<4;k1++) for(let k2=k1+1;k2<4;k2++){
+        if(!onBoard(k1)||!onBoard(k2)) continue;
+        for(let a=1;a<=6;a++){ const b=7-a;
+          add("split",`Split the 7: pawn ${k1+1} forward ${a}, pawn ${k2+1} forward ${b}.`,[k1,k2],(s,ev)=>{
+            for(const o of [[k1,a,k2,b],[k2,b,k1,a]]){
+              const t=clone(s),e=[];
+              const n1=fwd(t[p][o[0]],p,o[1]); if(!n1||!land(t,p,o[0],n1,e)) continue;
+              const n2=fwd(t[p][o[2]],p,o[3]); if(!n2||!land(t,p,o[2],n2,e)) continue;
+              for(let q=0;q<4;q++)for(let kk=0;kk<4;kk++) s[q][kk]=t[q][kk];
+              ev.push(...e); return true;
+            }
+            return false;
+          });
+        }
+      }
+      break;
+    case 8: F(8); break;
+    case 10: F(10); B(1); break;
+    case 11: {
+      F(11); const anyFwd=out.length>0; let anySwap=false;
+      for(let k=0;k<4;k++){ if(st[p][k].z!=="T") continue;
+        for(const [q,kk] of opp){ anySwap=true;
+          add("swap",`Swapped pawn ${k+1} with ${NAME[q]} pawn ${kk+1}.`,[k],(s,ev)=>{
+            const a=s[p][k].v,b=s[q][kk].v; s[q][kk]={z:"T",v:a}; s[p][k]={z:"T",v:b};
+            ev.push({type:"swap",p,k,q,kk}); slideCheck(s,p,k,ev); return true;});
+        }
+      }
+      if(!anyFwd&&anySwap) out.push({kind:"pass",text:"Couldn't move 11 and chose not to swap.",moved:[],st:clone(st),ev:[]});
+      break;
+    }
+    case 12: F(12); break;
+    case "S":
+      if(startK>=0) for(const [q,kk] of opp)
+        add("sorry",`Played Sorry! on ${NAME[q]} pawn ${kk+1}, taking its space.`,[startK],(s,ev)=>{
+          const t=s[q][kk].v; s[q][kk]={z:"S",v:0};
+          ev.push({type:"bump",by:p,k:startK,victim:q,vk:kk,sorry:true});
+          s[p][startK]={z:"T",v:t}; slideCheck(s,p,startK,ev); return true;});
+      break;
+  }
+  return out;
+}
+// progress: 0 in Start, 2 just out, 60 at Safety entrance, 61-65 in Safety Zone, 66 Home
+function prog(x,p){
+  if(x.z==="S") return 0; if(x.z==="H") return 66; if(x.z==="Z") return 60+x.v;
+  return 66-(((ENTR(p)-x.v+60)%60)+6);
+}
+function value(st,p){
+  let v=0;
+  for(let k=0;k<4;k++){ const x=st[p][k]; v+=prog(x,p)+(x.z==="H"?14:x.z==="Z"?6:0);
+    if(x.z==="T") for(let q=0;q<4;q++){ if(q===p) continue;
+      for(let kk=0;kk<4;kk++){ const y=st[q][kk]; if(y.z!=="T") continue; const d=(x.v-y.v+60)%60; if(d>=1&&d<=12) v-=3; } } }
+  return v;
+}
+function score(st,p){
+  const own=value(st,p); let mx=-1e9,sum=0;
+  for(let q=0;q<4;q++) if(q!==p){ const v=value(st,q); sum+=v; if(v>mx) mx=v; }
+  return own-0.55*mx-0.15*sum;
+}
+function pct(st,p){ let s=0; for(let k=0;k<4;k++) s+=prog(st[p][k],p); return s/264; }
+
+function simulate(seed){
+  const rng=mulberry32(seed);
+  const deck=[1,1,1,1,1]; for(const c of [2,3,4,5,7,8,10,11,12]) for(let i=0;i<4;i++) deck.push(c); for(let i=0;i<4;i++) deck.push("S");
+  let draw=shuffle(deck.slice(),rng), discard=[];
+  let st=[0,1,2,3].map(()=>[0,1,2,3].map(()=>({z:"S",v:0})));
+  const stats=NAME.map(()=>({draws:0,home:0,bumps:0,bumped:0,slides:0,sorry:0,swaps:0,lost:0}));
+  const frames=[{p:null,card:null,text:"All 16 pawns wait in Start. Red draws first, then play moves clockwise.",ev:[],moved:[],st:clone(st),pct:[0,0,0,0]}];
+  let p=0,winner=-1,guard=0,reshuffles=0;
+  while(winner<0&&guard++<4000){
+    if(!draw.length){ draw=shuffle(discard,rng); discard=[]; reshuffles++; }
+    const card=draw.pop(); discard.push(card); stats[p].draws++;
+    const opts=options(st,p,card);
+    let text=`Drew ${cardWord(card)}. `, ev=[], moved=[];
+    if(!opts.length){ text+="No legal move, so the turn is lost."; stats[p].lost++; }
+    else{
+      let best=null,bs=-1e9;
+      for(const o of opts){ const s=score(o.st,p)+rng()*0.6; if(s>bs){bs=s;best=o;} }
+      st=best.st; ev=best.ev; moved=best.moved; text+=best.text;
+      if(best.kind==="sorry") stats[p].sorry++;
+      if(best.kind==="swap") stats[p].swaps++;
+      for(const e of ev){
+        if(e.type==="bump"){
+          if(e.victim===p) text+=` The slide knocked its own pawn ${e.vk+1} back to Start.`;
+          else{ stats[p].bumps++; stats[e.victim].bumped++; if(!e.sorry) text+=` Bumped ${NAME[e.victim]} pawn ${e.vk+1} back to Start${e.slide?" on the slide":""}.`; else stats[e.victim].bumped+=0; }
+        }
+        if(e.type==="slide"){ stats[p].slides++; text+=` Landed on a ${NAME[e.owner]} slide and rode it to the end.`; }
+        if(e.type==="home"){ stats[p].home++; text+=` Pawn ${e.k+1} reached Home.`; }
+      }
+    }
+    if(st[p].every(x=>x.z==="H")){ winner=p; text+=` That's all four pawns Home. ${NAME[p]} wins!`; }
+    else if(card===2) text+=" A 2 means draw again.";
+    frames.push({p,card,text,ev,moved,st:clone(st),pct:[0,1,2,3].map(q=>pct(st,q)),win:winner>=0});
+    if(winner<0&&card!==2) p=(p+1)%4;
+  }
+  return {seed,frames,stats,winner,reshuffles};
+}
+
+// ---------- drawing ----------
+const SVGNS="http://www.w3.org/2000/svg";
+function el(tag,attrs,parent){const e=document.createElementNS(SVGNS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e;}
+function rot(x,y,s){ for(let i=0;i<s;i++){ const nx=16-y; y=x; x=nx; } return [x,y]; }
+function trackXY(t){ const s=Math.floor(t/15),i=t%15; const [x,y]=rot(i+.5,.5,s); return [x*CELL,y*CELL]; }
+const SLOT=[[-1,-1],[1,-1],[-1,1],[1,1]];
+function pawnXY(p,k,x){
+  if(x.z==="T") return trackXY(x.v);
+  if(x.z==="Z"){ const [a,b]=rot(2.5,x.v+.5,p); return [a*CELL,b*CELL]; }
+  if(x.z==="S"){ const [a,b]=rot(4.5,2.4,p); return [a*CELL+SLOT[k][0]*17,b*CELL+SLOT[k][1]*17]; }
+  const [a,b]=rot(2.5,7,p); return [a*CELL+SLOT[k][0]*15,b*CELL+SLOT[k][1]*15];
+}
+const col=p=>`var(${CVAR[p]})`;
+const tint=(p,amt)=>`color-mix(in srgb, var(${CVAR[p]}) ${amt}%, var(--cell))`;
+
+const board=document.getElementById("board");
+let pawnEls=[], cardG=null;
+function drawBoard(){
+  board.innerHTML="";
+  el("rect",{x:0,y:0,width:640,height:640,rx:16,style:"fill:var(--board)"},board);
+  for(let t=0;t<60;t++){ const [x,y]=trackXY(t); el("rect",{x:x-20,y:y-20,width:40,height:40,class:"cellr"},board); }
+  for(let s=0;s<4;s++){
+    const g=el("g",{transform:`rotate(${90*s} 320 320)`},board);
+    for(let k=1;k<=5;k++) el("rect",{x:80,y:k*40,width:40,height:40,style:`fill:${tint(s,30)};stroke:${col(s)};stroke-width:1.5`},g);
+    el("circle",{cx:100,cy:280,r:38,style:`fill:${tint(s,18)};stroke:${col(s)};stroke-width:3`},g);
+    const hl=el("text",{x:100,y:313,class:"blabel",style:`fill:${col(s)}`},g); hl.textContent="HOME";
+    el("circle",{cx:180,cy:96,r:52,style:`fill:${tint(s,12)};stroke:${col(s)};stroke-width:3`},g);
+    const sl=el("text",{x:180,y:142,class:"blabel",style:`fill:${col(s)}`},g); sl.textContent="START";
+    for(const [a,b] of [[1,4],[9,13]]){
+      const x1=a*40+20,x2=b*40+20;
+      el("rect",{x:x1,y:15,width:x2-x1,height:10,rx:2,style:`fill:${col(s)};opacity:.85`},g);
+      el("path",{d:`M${x1-11} 7 L${x1+9} 20 L${x1-11} 33 Z`,style:`fill:${col(s)}`},g);
+      el("circle",{cx:x2,cy:20,r:9,style:`fill:${col(s)}`},g);
+    }
+  }
+  const logo=el("text",{x:320,y:222,style:"font-family:var(--display);font-size:34px;fill:var(--ink);text-anchor:middle;letter-spacing:1px"},board); logo.textContent="SORRY!";
+  cardG=el("g",{},board);
+  pawnEls=[];
+  for(let p=0;p<4;p++){ pawnEls.push([]);
+    for(let k=0;k<4;k++){
+      const g=el("g",{class:"pawn"},board);
+      el("circle",{r:19,class:"ring"},g);
+      el("circle",{r:13,class:"body",style:`fill:${col(p)}`},g);
+      const tx=el("text",{y:1,style:`fill:${PAWN_TEXT[p]}`},g); tx.textContent=k+1;
+      pawnEls[p].push(g);
+    }
+  }
+}
+function drawCard(f){
+  cardG.innerHTML="";
+  const x=262,y=244,w=116,h=156;
+  el("rect",{x,y,width:w,height:h,rx:12,style:`fill:var(--cardface);stroke:${f.p==null?"var(--grid)":col(f.p)};stroke-width:5`},cardG);
+  if(f.card==null){
+    const t=el("text",{x:320,y:328,style:"font-family:var(--display);font-size:18px;fill:#152030;text-anchor:middle"},cardG); t.textContent="DECK";
+    return;
+  }
+  const big=f.card==="S";
+  const t=el("text",{x:320,y:big?330:342,style:`font-family:var(--display);font-size:${big?26:64}px;fill:${col(f.p)};text-anchor:middle`},cardG);
+  t.textContent=big?"SORRY!":String(f.card);
+  const hint=CARD_HINT[f.card];
+  const words=hint.split(". ");
+  words.forEach((w2,i)=>{ const h2=el("text",{x:320,y:372+i*13,style:"font-family:var(--body);font-weight:600;font-size:10.5px;fill:#3c4757;text-anchor:middle"},cardG); h2.textContent=w2; });
+}
+
+// ---------- UI ----------
+let G=null, idx=0, timer=null;
+const $=id=>document.getElementById(id);
+const reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function setFrame(i,fromScrub){
+  idx=Math.max(0,Math.min(G.frames.length-1,i));
+  const f=G.frames[idx];
+  for(let p=0;p<4;p++) for(let k=0;k<4;k++){
+    const [x,y]=pawnXY(p,k,f.st[p][k]); const g=pawnEls[p][k];
+    g.style.transform=`translate(${x}px,${y}px)`;
+    g.classList.toggle("moved",f.p===p&&f.moved.includes(k));
+  }
+  // keep moved pawns on top
+  if(f.p!=null) for(const k of f.moved) board.appendChild(pawnEls[f.p][k]);
+  drawCard(f);
+  $("now").style.setProperty("--pc",f.p==null?"var(--line)":col(f.p));
+  $("nowdot").style.background=f.p==null?"var(--line)":col(f.p);
+  $("nowwho").textContent=f.p==null?"Setup":`Draw ${idx} · ${NAME[f.p]}`;
+  $("nowtext").textContent=f.text;
+  const chips=$("nowchips"); chips.innerHTML="";
+  const seen=new Set();
+  for(const e of f.ev){ let c=null,l=null;
+    if(e.type==="bump"&&e.sorry){c="bump";l="Sorry!";} else if(e.type==="bump"){c="bump";l="Bump";}
+    else if(e.type==="slide"){c="slide";l="Slide";} else if(e.type==="home"){c="home";l="Home";} else if(e.type==="swap"){c="swap";l="Swap";}
+    if(l&&!seen.has(l)){seen.add(l); const s=document.createElement("span"); s.className="chip "+c; s.textContent=l; chips.appendChild(s);} }
+  if(f.win){ const s=document.createElement("span"); s.className="chip home"; s.textContent="Winner"; chips.appendChild(s); }
+  if(!fromScrub) $("scrub").value=idx;
+  $("counter").textContent=`${idx} / ${G.frames.length-1}`;
+  const log=$("log"); const prev=log.querySelector(".cur"); if(prev) prev.classList.remove("cur");
+  const li=log.children[idx]; if(li){ li.classList.add("cur");
+    const top=li.offsetTop-log.offsetTop, bot=top+li.offsetHeight;
+    if(top<log.scrollTop||bot>log.scrollTop+log.clientHeight) log.scrollTop=top-log.clientHeight/2; }
+  drawMarker();
+}
+function stop(){ if(timer){clearTimeout(timer);timer=null;} $("play").textContent="Play"; }
+function play(){
+  if(idx>=G.frames.length-1) setFrame(0);
+  $("play").textContent="Pause";
+  const tick=()=>{ if(idx>=G.frames.length-1){stop();return;} setFrame(idx+1); timer=setTimeout(tick,+$("speed").value); };
+  timer=setTimeout(tick,200);
+}
+function applySpeed(){ const ms=+$("speed").value; document.documentElement.style.setProperty("--dur",Math.min(450,ms*.65)+"ms"); }
+
+// chart
+const CH={W:900,H:280,l:44,r:78,t:14,b:30};
+let markerG=null;
+const cx=i=>CH.l+i/(G.frames.length-1)*(CH.W-CH.l-CH.r);
+const cy=v=>CH.t+(1-v)*(CH.H-CH.t-CH.b);
+function drawChart(){
+  const svg=$("chart"); svg.innerHTML="";
+  const N=G.frames.length-1;
+  for(const v of [0,.25,.5,.75,1]){
+    el("line",{x1:CH.l,x2:CH.W-CH.r,y1:cy(v),y2:cy(v),style:"stroke:var(--line);stroke-width:1"},svg);
+    const t=el("text",{x:CH.l-8,y:cy(v)+4,style:"fill:var(--muted);font:500 11px var(--mono);text-anchor:end"},svg); t.textContent=Math.round(v*100)+"%";
+  }
+  const steps=[10,20,25,50,100,200,250,500]; const step=steps.find(s=>N/s<=8)||1000;
+  for(let i=0;i<=N;i+=step){ const t=el("text",{x:cx(i),y:CH.H-8,style:"fill:var(--muted);font:500 11px var(--mono);text-anchor:middle"},svg); t.textContent=i; }
+  const ends=[];
+  for(let p=0;p<4;p++){
+    const pts=G.frames.map((f,i)=>`${cx(i).toFixed(1)},${cy(f.pct[p]).toFixed(1)}`).join(" ");
+    el("polyline",{points:pts,style:`fill:none;stroke:${col(p)};stroke-width:${p===G.winner?3:2};stroke-linejoin:round;opacity:${p===G.winner?1:.8}`},svg);
+    ends.push({p,y:cy(G.frames[N].pct[p])});
+  }
+  ends.sort((a,b)=>a.y-b.y); for(let i=1;i<ends.length;i++) if(ends[i].y-ends[i-1].y<14) ends[i].y=ends[i-1].y+14;
+  for(const e of ends){ const t=el("text",{x:CH.W-CH.r+8,y:e.y+4,style:`fill:${col(e.p)};font:700 12px var(--body)`},svg); t.textContent=NAME[e.p]+" "+Math.round(G.frames[N].pct[e.p]*100)+"%"; }
+  markerG=el("g",{},svg);
+}
+function drawMarker(){
+  if(!markerG) return; markerG.innerHTML="";
+  const f=G.frames[idx], x=cx(idx);
+  el("line",{x1:x,x2:x,y1:CH.t,y2:CH.H-CH.b,style:"stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3"},markerG);
+  for(let p=0;p<4;p++) el("circle",{cx:x,cy:cy(f.pct[p]),r:4.5,style:`fill:${col(p)};stroke:var(--surface);stroke-width:1.5`},markerG);
+}
+$("chart").addEventListener("click",ev=>{
+  const r=$("chart").getBoundingClientRect(); const x=(ev.clientX-r.left)/r.width*CH.W;
+  const i=Math.round((x-CH.l)/(CH.W-CH.l-CH.r)*(G.frames.length-1)); stop(); setFrame(i);
+});
+
+function render(){
+  const {frames,stats,winner,seed}=G, N=frames.length-1;
+  const bumps=stats.reduce((a,s)=>a+s.bumps,0), slides=stats.reduce((a,s)=>a+s.slides,0);
+  const winDraws=stats[winner].draws;
+  $("lede").innerHTML=`In game #${seed}, <strong style="color:${col(winner)}">${NAME[winner]}</strong> got all four pawns Home after <strong>${N}</strong> card draws (${winDraws} of them ${NAME[winner]}'s). Press Play to watch the whole game, or drag the slider to any draw.`;
+  const tiles=[[NAME[winner],"Winner",col(winner)],[N,"Card draws","var(--ink)"],[bumps,"Pawns bumped to Start","var(--ink)"],[slides,"Slides taken","var(--ink)"]];
+  $("tiles").innerHTML=tiles.map(([n,l,c])=>`<div class="tile"><span class="num" style="color:${c}">${n}</span><span class="lab">${l}</span></div>`).join("");
+  $("seedlab").textContent=`Game #${seed}`;
+  const log=$("log"); log.innerHTML="";
+  frames.forEach((f,i)=>{
+    const li=document.createElement("li"); li.tabIndex=0;
+    li.innerHTML=`<span class="n">${i===0?"—":"#"+i}</span><span class="dot" style="background:${f.p==null?"var(--line)":col(f.p)}"></span><span></span>`;
+    li.lastChild.textContent=f.p==null?"Setup":`${NAME[f.p]}: ${f.text}`;
+    li.addEventListener("click",()=>{stop();setFrame(i);});
+    li.addEventListener("keydown",e=>{if(e.key==="Enter"){stop();setFrame(i);}});
+    log.appendChild(li);
+  });
+  const mom=$("moments"); mom.innerHTML="";
+  frames.forEach((f,i)=>{
+    const lines=[];
+    for(const e of f.ev){
+      if(e.type==="bump"&&e.victim!==f.p) lines.push(e.sorry?`Sorry! sends ${NAME[e.victim]} pawn ${e.vk+1} back to Start`:`bumps ${NAME[e.victim]} pawn ${e.vk+1}${e.slide?" on a slide":""}`);
+      if(e.type==="swap") lines.push(`swaps places with ${NAME[e.q]} pawn ${e.kk+1}`);
+      if(e.type==="home") lines.push(`pawn ${e.k+1} reaches Home`);
+    }
+    if(f.win) lines.push("wins the game");
+    for(const l of lines){
+      const li=document.createElement("li"); li.className="moment"; li.tabIndex=0;
+      li.innerHTML=`<span class="n">#${i}</span><span class="dot" style="background:${col(f.p)}"></span><span></span>`;
+      li.lastChild.textContent=`${NAME[f.p]} ${l}`;
+      li.addEventListener("click",()=>{stop();setFrame(i);});
+      li.addEventListener("keydown",e=>{if(e.key==="Enter"){stop();setFrame(i);}});
+      mom.appendChild(li);
+    }
+  });
+  const order=[0,1,2,3].sort((a,b)=>(b===winner)-(a===winner)||frames[N].pct[b]-frames[N].pct[a]);
+  $("stats").innerHTML=`<thead><tr><th>Player</th><th>Cards</th><th>Home</th><th>Bumps</th><th>Bumped</th><th>Sorry!</th><th>Swaps</th><th>Slides</th><th>Lost turns</th></tr></thead><tbody>`+
+    order.map(p=>{const s=stats[p]; return `<tr class="${p===winner?"win":""}"><td><span class="dot" style="background:${col(p)};margin-right:8px"></span>${NAME[p]}</td><td>${s.draws}</td><td>${s.home}/4</td><td>${s.bumps}</td><td>${s.bumped}</td><td>${s.sorry}</td><td>${s.swaps}</td><td>${s.slides}</td><td>${s.lost}</td></tr>`;}).join("")+`</tbody>`;
+  $("scrub").max=N;
+  drawChart();
+}
+function newGame(seed){
+  stop(); G=simulate(seed); drawBoard(); render(); setFrame(0);
+}
+
+$("play").addEventListener("click",()=>timer?stop():play());
+$("prev").addEventListener("click",()=>{stop();setFrame(idx-1);});
+$("next").addEventListener("click",()=>{stop();setFrame(idx+1);});
+$("scrub").addEventListener("input",e=>{stop();setFrame(+e.target.value,true);});
+$("speed").addEventListener("change",applySpeed);
+$("newgame").addEventListener("click",()=>newGame(1000+Math.floor(Math.random()*9000)));
+document.addEventListener("keydown",e=>{
+  if(e.target.closest&&e.target.closest("input,select,button,li")) return;
+  if(e.key===" "){e.preventDefault(); timer?stop():play();}
+  if(e.key==="ArrowRight"){stop();setFrame(idx+1);}
+  if(e.key==="ArrowLeft"){stop();setFrame(idx-1);}
+});
+
+applySpeed();
+newGame(1929);
+if(!reduce) play();
+})();
+</script>
