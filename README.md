@@ -21,3 +21,7 @@
 | [faq.md](faq.md) | Common rule questions and disputes |
 | [glossary.md](glossary.md) | Game terms |
 | [trivia.md](trivia.md) | Fun facts |
+
+## Quizzes
+
+The [quizzes](quizzes/) folder holds quizzes generated from these files. See [quizzes/README.md](quizzes/README.md) for how to make new ones.
