@@ -25,3 +25,7 @@
 ## Quizzes
 
 The [quizzes](quizzes/) folder holds quizzes generated from these files. See [quizzes/README.md](quizzes/README.md) for how to make new ones.
+
+## Live simulation
+
+Watch a full simulated 4-player game: **https://drtbaylor.github.io/tempquizzes/infographics/sorry-simulation.html**

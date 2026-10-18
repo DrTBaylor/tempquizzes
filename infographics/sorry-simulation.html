@@ -1,3 +1,9 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A full four-player game of Sorry! simulated with the classic rules, replayable draw by draw.">
 <title>Sorry! Game Replay</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -104,6 +110,9 @@ tr.win td:first-child::after{content:"WINNER";margin-left:8px;font-size:.65rem;l
 }
 @media (prefers-reduced-motion: reduce){ .pawn{transition:none} }
 </style>
+<style>body{margin:0}[hidden]{display:none!important}</style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
@@ -554,3 +563,5 @@ newGame(1929);
 if(!reduce) play();
 })();
 </script>
+</body>
+</html>
